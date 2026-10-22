@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Enums\TaskPriority;
+use App\Enums\TaskStatus;
 
 class Task extends Model
 {
@@ -29,6 +31,8 @@ class Task extends Model
             'due_date' => 'immutable_datetime',
             'create_date' => 'immutable_datetime',
             'updated_at' => 'immutable_datetime',
+            'status' => TaskStatus::class,
+            'priority' => TaskPriority::class,
         ];
     }
 }
