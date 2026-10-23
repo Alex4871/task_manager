@@ -1,0 +1,453 @@
+
+openapi: 3.0.3
+
+info:
+  title: Task Manager API
+  version: 1.0.0
+  description: |
+    REST API для управления задачами.
+
+    Возможности:
+    - Создание, просмотр, обновление и удаление задач
+    - Поиск по названию без учёта регистра
+    - Сортировка по сроку выполнения и дате создания
+    - Пагинация результатов
+
+servers:
+  - url: /
+    description: Текущий сервер
+
+tags:
+  - name: Tasks
+    description: Управление задачами
+
+paths:
+  /api/tasks:
+    get:
+      tags:
+        - Tasks
+      summary: Получить список задач
+      operationId: getTasks
+      parameters:
+        - name: search
+          in: query
+          description: Поиск по названию без учёта регистра
+          schema:
+            type: string
+            maxLength: 255
+          example: Купить
+
+        - name: sort
+          in: query
+          description: Поле сортировки
+          schema:
+            type: string
+            enum:
+              - due_date
+              - create_date
+            default: due_date
+
+        - name: order
+          in: query
+          description: Направление сортировки
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: asc
+
+        - name: page
+          in: query
+          description: Номер страницы
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+
+        - name: per_page
+          in: query
+          description: Количество задач на странице
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+
+      responses:
+        '200':
+          description: Список задач
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskCollection'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    post:
+      tags:
+        - Tasks
+      summary: Создать задачу
+      operationId: createTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreTaskRequest'
+            example:
+              title: Подготовить отчёт
+              description: Подготовить отчёт за октябрь
+              due_date: '2026-11-01T12:00:00Z'
+              status: Не выполнена
+              priority: Высокий
+              category: Работа
+
+      responses:
+        '201':
+          description: Задача создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/tasks/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Идентификатор задачи
+        schema:
+          type: integer
+          minimum: 1
+        example: 1
+
+    get:
+      tags:
+        - Tasks
+      summary: Получить задачу по ID
+      operationId: getTask
+      responses:
+        '200':
+          description: Задача найдена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Tasks
+      summary: Обновить задачу
+      description: |
+        Поддерживается частичное обновление.
+        Передавайте только поля, которые необходимо изменить.
+
+        Поля description и category можно очистить,
+        передав null.
+      operationId: updateTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaskRequest'
+            example:
+              title: Обновлённая задача
+              status: Выполнена
+              priority: Средний
+
+      responses:
+        '200':
+          description: Задача обновлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags:
+        - Tasks
+      summary: Удалить задачу
+      operationId: deleteTask
+      responses:
+        '204':
+          description: Задача удалена. Тело ответа отсутствует.
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  schemas:
+    Task:
+      type: object
+      description: Задача
+      required:
+        - id
+        - title
+        - description
+        - due_date
+        - create_date
+        - updated_at
+        - status
+        - priority
+        - category
+      properties:
+        id:
+          type: integer
+          readOnly: true
+          example: 1
+
+        title:
+          type: string
+          maxLength: 255
+          example: Подготовить отчёт
+
+        description:
+          type: string
+          nullable: true
+          example: Подготовить отчёт за октябрь
+
+        due_date:
+          type: string
+          format: date-time
+          example: '2026-11-01T12:00:00+00:00'
+
+        create_date:
+          type: string
+          format: date-time
+          description: Дата создания задачи
+          example: '2026-10-23T10:00:00+00:00'
+
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-10-23T12:00:00+00:00'
+
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+
+        priority:
+          $ref: '#/components/schemas/TaskPriority'
+
+        category:
+          type: string
+          maxLength: 100
+          nullable: true
+          example: Работа
+
+    TaskStatus:
+      type: string
+      description: |
+        Статус задачи.
+
+        Если при создании статус не указан,
+        используется значение "Не выполнена".
+      enum:
+        - Не выполнена
+        - Выполнена
+      default: Не выполнена
+      example: Не выполнена
+
+    TaskPriority:
+      type: string
+      description: |
+        Приоритет задачи.
+
+        Если при создании приоритет не указан,
+        используется значение "Средний".
+      enum:
+        - Низкий
+        - Средний
+        - Высокий
+      default: Средний
+      example: Средний
+
+    StoreTaskRequest:
+      type: object
+      required:
+        - title
+        - due_date
+      properties:
+        title:
+          type: string
+          maxLength: 255
+          example: Купить продукты
+
+        description:
+          type: string
+          nullable: true
+          example: Молоко, хлеб, яйца
+
+        due_date:
+          type: string
+          format: date-time
+          example: '2026-11-01T12:00:00Z'
+
+        create_date:
+          type: string
+          format: date-time
+          description: Необязательная дата создания
+          example: '2026-10-23T10:00:00Z'
+
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+
+        priority:
+          $ref: '#/components/schemas/TaskPriority'
+
+        category:
+          type: string
+          nullable: true
+          maxLength: 100
+          example: Покупки
+
+    UpdateTaskRequest:
+      type: object
+      description: Все поля необязательны
+      properties:
+        title:
+          type: string
+          maxLength: 255
+          example: Новое название
+
+        description:
+          type: string
+          nullable: true
+          example: Новое описание
+
+        due_date:
+          type: string
+          format: date-time
+          example: '2026-12-01T12:00:00Z'
+
+        create_date:
+          type: string
+          format: date-time
+          example: '2026-10-23T10:00:00Z'
+
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+
+        priority:
+          $ref: '#/components/schemas/TaskPriority'
+
+        category:
+          type: string
+          nullable: true
+          maxLength: 100
+          example: Работа
+
+    TaskResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Task'
+
+    TaskCollection:
+      type: object
+      required:
+        - data
+        - links
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+
+        links:
+          type: object
+          required:
+            - first
+            - last
+            - prev
+            - next
+          properties:
+            first:
+              type: string
+              format: uri
+            last:
+              type: string
+              format: uri
+            prev:
+              type: string
+              nullable: true
+              format: uri
+            next:
+              type: string
+              nullable: true
+              format: uri
+
+        meta:
+          type: object
+          required:
+            - current_page
+            - last_page
+            - per_page
+            - total
+          properties:
+            current_page:
+              type: integer
+              example: 1
+            last_page:
+              type: integer
+              example: 3
+            per_page:
+              type: integer
+              example: 10
+            total:
+              type: integer
+              example: 25
+
+    ValidationError:
+      type: object
+      required:
+        - message
+        - errors
+      properties:
+        message:
+          type: string
+          example: The title field is required.
+        errors:
+          type: object
+          description: Ошибки валидации, сгруппированные по полям
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            title:
+              - The title field is required.
+
+    NotFoundError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: No query results for model [App\Models\Task] 999999
+
+  responses:
+    ValidationError:
+      description: Ошибка валидации данных
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+
+    NotFound:
+      description: Задача не найдена
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/NotFoundError'
