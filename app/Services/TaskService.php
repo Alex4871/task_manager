@@ -40,7 +40,9 @@ class TaskService
 
     public function create(array $data): Task
     {
-        return Task::create($data);
+        $task = Task::create($data);
+
+        return $task->refresh();
     }
 
     public function update(Task $task, array $data): Task

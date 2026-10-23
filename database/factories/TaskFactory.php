@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 
 class TaskFactory extends Factory
 {
-
     public function definition(): array
     {
         return [
